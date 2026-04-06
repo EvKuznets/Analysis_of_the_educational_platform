@@ -1,0 +1,36 @@
+WITH cte AS (
+SELECT s1.st_id, --уникальный номер студента
+       s1.test_grp, --в какой тестовой группе студент
+       f1.money, -- сумма, потраченных денег студентом 
+       f1.buy_math, -- покупал ли студент курс по математике 
+       active_student.active, --активный пользователь (1-активный, 0- не активный)
+       active_student.active_math --активный пользователь по математике (1-активный по математике, 0 - не активный по математике)
+  FROM studs as s1
+  LEFT JOIN (SELECT st_id,
+                    SUM(money) as money,
+                    CASE WHEN SUM(CASE WHEN subject = 'Math' THEN 1 ELSE 0 END) > 0
+                         THEN 1 ELSE 0 END AS buy_math  --купил курс по математике (1-купил, 0- не покупал)
+               FROM final_project_check
+              GROUP BY st_id
+            ) as f1 
+    ON  s1.st_id = f1.st_id
+  LEFT JOIN    (SELECT st_id,
+                       CASE WHEN SUM(CASE WHEN correct THEN 1 ELSE 0 END) > 10 THEN 1 ELSE 0
+                        END AS active,  --правильно решил > 10 задач
+                       CASE WHEN SUM(CASE WHEN correct AND subject = 'Math' THEN 1 ELSE 0 END) >= 2 THEN 1 ELSE 0
+                        END AS active_math --  правильно решил ≥ 2 задач по математике
+                  FROM peas
+                 GROUP BY st_id
+             ) as active_student
+    ON s1.st_id = active_student.st_id
+              )
+
+SELECT  test_grp,
+        SUM(money) / COUNT(DISTINCT st_id) AS ARPU, -- ARPU
+        SUM(CASE WHEN active = 1 THEN money ELSE 0 END) / SUM(active) AS ARPAU, --ARPAU
+        SUM(CASE WHEN money> 0 THEN 1 ELSE 0 END)/ COUNT(DISTINCT st_id) :: float AS CR, --CR в покупку 
+        SUM(CASE WHEN money> 0 AND active = 1 THEN 1 ELSE 0 END)/ SUM(active):: float AS CR_active, --СR активного пользователя в покупку 
+        SUM(CASE WHEN buy_math = 1 THEN 1 ELSE 0 END)/ SUM(active_math):: float AS CR_math -- CR пользователя из активности по математике в покупку курса по математике
+        
+ FROM cte        
+GROUP BY test_grp;
